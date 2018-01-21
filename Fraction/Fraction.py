@@ -40,6 +40,10 @@ class Fraction:
     def get_zero_flag(self):
         return self.__zero_flag
 
+    def get_float_value(self):
+        return float((self.__sign_flag * self.__numerator) /
+                     self.__denominator)
+
     def simplify(self):
         if gcd(self.__numerator, self.__denominator) != 1:
             return Fraction(
