@@ -9,7 +9,8 @@ def gcd(a, b):
                 else:
                     return gcd((a % b), b)
             else:
-                raise ValueError("Invalid Value(s): Expected non-zero values")
+                raise ValueError("Invalid Value(s): Expected non-zero "
+                                 "positive integers")
         else:
             raise InvalidArgumentError(
                 "Invalid Argument Type: expected <+int, +int>")
