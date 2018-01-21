@@ -1,7 +1,7 @@
 def gcd(a, b):
     try:
         if isinstance(a, int) and isinstance(b, int):
-            if a != 0 and b != 0:
+            if a > 0 and b > 0:
                 if b > a:
                     a, b = b, a
                 if a % b == 0:
