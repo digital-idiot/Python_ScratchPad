@@ -356,7 +356,7 @@ def __decorate(data):
 
 
 def show_spinner():
-    spinner = itertools.cycle(['-', '/', '|', '\\'])
+    spinner = itertools.cycle(['|', '/', '-', '\\'])
     print('\nProcessing: ', end='', flush=True)
     while True:
         sys.stdout.write(next(spinner))  # write the next character
