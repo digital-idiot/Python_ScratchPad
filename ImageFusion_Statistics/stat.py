@@ -99,9 +99,8 @@ def __main():
         config.set_cols_valign(['m'])
         config.add_row([file_list[key][1]])
         out = out + key + "\n" + stat.draw() + "\n" + config.draw() + "\n" + table.draw() + "\n" + "."*80 + "\n"*3
-    with open("statistics.txt", "w+") as file:
+    with open(r"data/statistics.txt", "w+") as file:
         file.write(out[:-3])
-    # print(out[:-3])
 
 
 def get_rmse(orig, ref):
@@ -366,7 +365,6 @@ def show_spinner():
 
 
 if __name__ == '__main__':
-    # lock = threading.Lock()
     t = threading.Thread(target=show_spinner)
     t.daemon = True
     t.start()
