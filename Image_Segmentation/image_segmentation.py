@@ -36,7 +36,7 @@ def show(lst):
     print('SLIC number of segments: {}'.format(len(np.unique(segments_slic))))
     print('Quickshift number of segments: {}'.format(len(np.unique(segments_quick))))
  
-    fig, ax = plt.subplots(2, 2, figsize=(100, 100), sharex=True, sharey=True)
+    fig, ax = plt.subplots(2, 2, figsize=(10, 10), sharex=True, sharey=True)
  
     ax[0, 0].imshow(mark_boundaries(img, segments_fz))
     ax[0, 0].set_title("Felzenszwalbs's method")
