@@ -158,10 +158,10 @@ if __name__ == '__main__':
     th.daemon = True
     th.start()
     gen_statistics(correct_img)
-    # segments = main()
+    segments = main()
 
     th.run_flag = False
     th.join()
     sys.stdout.write('\b')
     print("Completed Successfully...\n")
-    # show(segments)
+    show(segments)
