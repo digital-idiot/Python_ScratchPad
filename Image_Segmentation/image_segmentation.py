@@ -14,12 +14,16 @@ import sys
 import time
 import warnings
 
+from scipy import stats
+
+import texttable
+
 from skimage.color import rgb2gray
 from skimage.filters import sobel
 from skimage.segmentation import felzenszwalb, slic, quickshift, watershed
 from skimage.segmentation import mark_boundaries
 from skimage import transform
-from skimage.util import img_as_float
+from skimage.util import img_as_float, img_as_ubyte
 from skimage import exposure
 from skimage import io
 
@@ -62,7 +66,9 @@ def enhance(img):
     enhanced_bands = list()
     for b in range(img.shape[-1]):
         enhanced_bands.append(exposure.equalize_adapthist(img[:, :, b]))
-    return np.dstack(enhanced_bands)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return img_as_ubyte(np.dstack(enhanced_bands))
 
 
 def main():
@@ -97,9 +103,31 @@ def show(lst):
  
     for a in ax.ravel():
         a.set_axis_off()
- 
-    # plt.tight_layout()
+
     plt.show()
+
+
+def gen_statistics(img):
+    data_range = list()
+    means = list()
+    variances = list()
+    entrpoies = list()
+    skewness = list()
+    for b in range(img.shape[-1]):
+        band = img[..., b]
+        data_range.append((np.amin(band.ravel()), np.amax(band.ravel())))
+        means.append(np.mean(band))
+        variances.append(np.var(band))
+        entrpoies.append(stats.entropy(band.ravel()))
+        skewness.append(stats.skew(band.ravel(), bias=True))
+
+    stat = texttable.Texttable()
+    stat.set_cols_align(['c', 'c', 'c', 'c'])
+    stat.set_cols_valign(['m', 'm', 'm', 'm'])
+    stat.add_rows([['Measure', 'Band-I  ', 'Band-II ', 'Band-III'], ["Range"] + data_range, ["Mean"] + means,
+                   ["Variance"] + variances, ["Entropy"] + entrpoies, ["Skewness"] + skewness])
+    with open(r"output/statistics.txt", "w+") as file:
+        file.write("\n" + stat.draw() + "\n")
 
 
 def show_spinner():
@@ -129,9 +157,11 @@ if __name__ == '__main__':
     th = threading.Thread(target=show_spinner)
     th.daemon = True
     th.start()
-    segments = main()
+    gen_statistics(correct_img)
+    # segments = main()
+
     th.run_flag = False
     th.join()
     sys.stdout.write('\b')
     print("Completed Successfully...\n")
-    show(segments)
+    # show(segments)
