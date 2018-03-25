@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+# Use native system consoles(cmd, linux shell etc) only
+# Compatible with Python v3.6.4
+# Dependencies: numpy, gdal, texttable
 
 import gdal
 import numpy
@@ -355,9 +358,10 @@ def __decorate(data):
 
 
 def show_spinner():
+    t = threading.currentThread()
     spinner = itertools.cycle(['|', '/', '-', '\\'])
     print('\nProcessing: ', end='', flush=True)
-    while True:
+    while getattr(t, "run_flag", True):
         sys.stdout.write(next(spinner))  # write the next character
         time.sleep(0.2)
         sys.stdout.flush()  # flush stdout buffer (actual character display)
@@ -369,5 +373,7 @@ if __name__ == '__main__':
     t.daemon = True
     t.start()
     __main()
+    t.run_flag = False
+    t.join()
     sys.stdout.write('\b')
     print("Completed Successfully...\n")

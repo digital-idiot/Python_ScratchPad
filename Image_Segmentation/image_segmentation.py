@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+# Use native system consoles(cmd, linux shell etc) only
+# Compatible with Python v3.6.4
+# Dependencies: numpy, matplotlib, gdal, scikit-image
+
 import matplotlib.pyplot as plt
 import numpy as np
 import gdal
