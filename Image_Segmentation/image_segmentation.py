@@ -89,9 +89,15 @@ def show(lst):
     print("Felzenszwalb number of segments: {}".format(len(np.unique(segments_fz))))
     print('SLIC number of segments: {}'.format(len(np.unique(segments_slic))))
     print('Quickshift number of segments: {}'.format(len(np.unique(segments_quick))))
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        io.imsave(r"output/Felzenszwalbs.png", mark_boundaries(correct_img, segments_fz))
+        io.imsave(r"output/SLIC.png", mark_boundaries(correct_img, segments_slic))
+        io.imsave(r"output/Quick_Shift.png", mark_boundaries(correct_img, segments_quick))
+        io.imsave(r"output/Compact_Watershed.png", mark_boundaries(correct_img, segments_watershed))
  
     fig, ax = plt.subplots(2, 2, figsize=(10, 10))
- 
     ax[0, 0].imshow(mark_boundaries(correct_img, segments_fz))
     ax[0, 0].set_title("Felzenszwalbs's method")
     ax[0, 1].imshow(mark_boundaries(correct_img, segments_slic))
@@ -147,19 +153,21 @@ os.chdir(dir_name)
 
 input_image = (np.array(gdal.Open(r'data/study_area.tif').ReadAsArray())).astype(float)
 img_array = img_as_float((input_image.transpose(1, 2, 0))[::2, ::2])
-correct_img = enhance(straighten_image(img_array))
+straight_image = straighten_image(img_array)
+correct_img = enhance(straight_image)
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
-    io.imsave(r"output/rectified_image.tiff", correct_img)
-    io.imsave(r"output/rectified_image.png", correct_img)
+    io.imsave(r"output/rectified_image.tiff", straight_image)
+    # io.imsave(r"output/rectified_image.png", straight_image)
+    io.imsave(r"output/enhanced_image.tiff", correct_img)
+    # io.imsave(r"output/enhanced_image.png", correct_img)
 
 if __name__ == '__main__':
     th = threading.Thread(target=show_spinner)
     th.daemon = True
     th.start()
-    gen_statistics(correct_img)
+    gen_statistics(straight_image)
     segments = main()
-
     th.run_flag = False
     th.join()
     sys.stdout.write('\b')
