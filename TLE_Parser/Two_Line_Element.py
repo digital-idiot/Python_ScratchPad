@@ -321,7 +321,7 @@ class TwoLineElements:
             if isinstance(db_path, str):
                 try:
                     db_uri = 'file:{}?mode=rw'.format(pathname2url(db_path))
-                    connection = sqlite3.connect(db_uri, uri=True)
+                    connection = sqlite3.connect(db_uri)
                 except sqlite3.OperationalError:
                     connection = sqlite3.connect(db_path)
                 db_pointer = connection.cursor()
