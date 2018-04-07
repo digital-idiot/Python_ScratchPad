@@ -1,5 +1,7 @@
 import re
 import magic
+import sqlite3
+from urllib.request import pathname2url
 
 
 class InvalidArgumentError(Exception):
@@ -274,7 +276,8 @@ class TwoLineElements:
                 print("parse_tle_file: Invalid File Path", " {", os_err, "}")
             return None
 
-    def __init__(self, file_path=None, ignore=False, verbose=False):
+    @classmethod
+    def from_file(cls, file_path=None, ignore=False, verbose=False):
             if file_path:
                 try:
                     parsed_tle = TwoLineElements.parse_tle_file(file_path, ignore=ignore, verbose=verbose)
@@ -283,24 +286,55 @@ class TwoLineElements:
                     if verbose:
                         print(val_err)
                 if parsed_tle:
-                    self.__tle_dump = parsed_tle[1]
+                    TwoLineElements(parsed_tle[1])
                 else:
                     raise ValueError('Invalid TLE File: Parsing of TLE File Failed')
             else:
-                self.__tle_dump = list()
+                TwoLineElements(list())
 
     def get_all(self):
         return self.__tle_dump
 
-    def merge(self, tle_object, verbose=False):
+    def count(self):
+        return len(self.__tle_dump)
+
+    def __init__(self, tle_list):
+        if isinstance(tle_list, list):
+            self.__tle_dump = tle_list
+        else:
+            raise InvalidArgumentError("set: Expected <list> as argument")
+
+    def __add__(self, other):
         try:
-            if isinstance(tle_object, TwoLineElement):
-                self.__tle_dump.append(tle_object)
-            elif isinstance(tle_object, TwoLineElements):
-                self.__tle_dump += tle_object.get_all()
+            if isinstance(other, TwoLineElement):
+                return TwoLineElements(self.__tle_dump + [other])
+            elif isinstance(other, TwoLineElements):
+                return TwoLineElements(self.__tle_dump + other.get_all())
             else:
-                raise InvalidArgumentError("append: Expected <TwoLineElement / TwoLineElements>")
-        except InvalidArgumentError as arg_err:
-            if verbose:
-                print(arg_err)
+                raise InvalidArgumentError("add: Expected <TwoLineElement / TwoLineElements> as argument")
+        except InvalidArgumentError:
             return None
+
+    # Warning: Not Complete
+    def gen_db(self, db_path='Sat_Repo.db', table_name='Sat_Info'):
+        try:
+            if isinstance(db_path, str):
+                try:
+                    db_uri = 'file:{}?mode=rw'.format(pathname2url(db_path))
+                    connection = sqlite3.connect(db_uri, uri=True)
+                except sqlite3.OperationalError:
+                    connection = sqlite3.connect(db_path)
+                db_pointer = connection.cursor()
+                # TODO: Add complete Database Schema
+                schema = 'CREATE TABLE IF NOT EXIST' + table_name + '''...'''
+                db_pointer.execute(schema)
+
+                # TODO: Insert all parsed TLEs into table
+                for tle_dict in self.__tle_dump:
+                    tle_dict.keys()
+                    pass
+
+            else:
+                raise InvalidArgumentError("gen_db: Expected <str> as argument")
+        except sqlite3.OperationalError:
+            print("Database does not exist")
