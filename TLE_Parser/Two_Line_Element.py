@@ -62,6 +62,18 @@ class FatalError(Exception):
 
 class TwoLineElement:
 
+    schema = {
+        'SATELLITE_NAME': str, 'SATELLITE_NUMBER': int, 'CLASSFICATION': str, 'LAUNCH_YEAR': int, 'LAUNCH_NUMBER': int,
+        'PIECE_OF_LAUNCH': str, 'EPOCH_YEAR': int, 'EPOCH_DAY': float, 'FIRST_TIME_DERIVATIVE': float,
+        'SECOND_TIME_DERIVATIVE': float, 'BSTAR_DRAG': float, 'EPHEMERIS_TYPE': int, 'ELEMENT_SET_NUMBER': int,
+        'INCLINATION': float, 'RIGHT_ASCENSION': float, 'ECCENTRICITY': float, 'ARGUMENT_OF_PERIGEE': float,
+        'MEAN_ANOMALY': float, 'MEAN_MOTION': float, 'REVOLUTION_AT_EPOCH': int
+    }
+
+    type_map = {
+        str: 'TEXT', int: 'INTEGER', float: 'REAL'
+    }
+
     @staticmethod
     def valid_tle_line(tle_line, verbose=False):
         if not isinstance(verbose, bool):
@@ -97,7 +109,7 @@ class TwoLineElement:
                     elif c.isdigit():
                         check_sum = check_sum + int(c)
                 check_sum %= 10
-                if check_sum == line[-1]:
+                if str(check_sum) == line[-1]:
                     return True
                 else:
                     return False
@@ -130,7 +142,7 @@ class TwoLineElement:
                                     else:
                                         tle_dict['LAUNCH_YEAR'] = int('19' + tle_lines[1][9:11])
                                     tle_dict['LAUNCH_NUMBER'] = int(tle_lines[1][11:14])
-                                    tle_dict['LAUNCH_PIECE'] = (tle_lines[1][14:17]).strip()
+                                    tle_dict['PIECE_OF_LAUNCH'] = (tle_lines[1][14:17]).strip()
                                     if int(tle_lines[1][18:20]) < 57:
                                         tle_dict['EPOCH_YEAR'] = int('20' + tle_lines[1][18:20])
                                     else:
@@ -152,7 +164,7 @@ class TwoLineElement:
                                             tle_dict['SECOND_TIME_DERIVATIVE'] = 6.0 * float(
                                                 std[0] + '0.' + std[1:index] + 'E' + std[index:]
                                             )
-                                    drag = tle_lines[1][53:61]
+                                    drag = (tle_lines[1][53:61]).strip()
                                     if not bool(re.compile(r'[^0-9+\-]').search(drag)):
                                         index = 0
                                         for i in reversed(range(len(drag))):
@@ -160,7 +172,6 @@ class TwoLineElement:
                                                 index = i
                                                 break
                                         if (drag[0]).isdigit():
-                                            print(drag)
                                             tle_dict['BSTAR_DRAG'] = float(
                                                 '0.' + drag[0:index] + 'E' + drag[index:]
                                             )
@@ -168,6 +179,8 @@ class TwoLineElement:
                                             tle_dict['BSTAR_DRAG'] = float(
                                                 drag[0] + '0.' + drag[1:index] + 'E' + drag[index:]
                                             )
+                                    else:
+                                        raise IntegrityError('Possible Corruption of TLE Data')
                                     tle_dict['EPHEMERIS_TYPE'] = int(tle_lines[1][62])
                                     tle_dict['ELEMENT_SET_NUMBER'] = int(tle_lines[1][64:68])
                                 except ValueError as val_err:
@@ -232,7 +245,7 @@ class TwoLineElement:
         launch_number = str(self.__tle_data['LAUNCH_NUMBER'])
         while len(launch_number) < 3:
             launch_number = "0" + launch_number
-        return str(self.__tle_data['LAUNCH_YEAR']) + '-' + launch_number + str(self.__tle_data['LAUNCH_PIECE'])
+        return str(self.__tle_data['LAUNCH_YEAR']) + '-' + launch_number + str(self.__tle_data['PIECE_OF_LAUNCH'])
 
 
 class TwoLineElements:
@@ -248,7 +261,7 @@ class TwoLineElements:
                         tle_list.append(line)
                         if len(tle_list) == 3:
                             tle = ''.join(tle_list)
-                            tle_data = TwoLineElement(tle)
+                            tle_data = TwoLineElement.parse_tle(tle)
                             if tle_data:
                                 tle_collection.append(tle_data)
                             else:
@@ -286,11 +299,11 @@ class TwoLineElements:
                     if verbose:
                         print(val_err)
                 if parsed_tle:
-                    TwoLineElements(parsed_tle[1])
+                    return TwoLineElements(parsed_tle[1])
                 else:
                     raise ValueError('Invalid TLE File: Parsing of TLE File Failed')
             else:
-                TwoLineElements(list())
+                return TwoLineElements(list())
 
     def get_all(self):
         return self.__tle_dump
@@ -315,26 +328,61 @@ class TwoLineElements:
         except InvalidArgumentError:
             return None
 
+    @staticmethod
+    def make_sql():
+        schema = TwoLineElement.schema
+        sql_str = '( '
+        for key in schema.keys():
+            sql_str += key + ' ' + TwoLineElement.type_map[schema[key]] + ' '
+            if key == 'SATELLITE_NUMBER':
+                sql_str += 'PRIMARY KEY, '
+            else:
+                sql_str += 'NOT NULL, '
+        sql_str = sql_str[:-2] + ' );'
+        return sql_str
+
     # Warning: Not Complete
     def gen_db(self, db_path='Sat_Repo.db', table_name='Sat_Info'):
         try:
             if isinstance(db_path, str):
                 try:
-                    db_uri = 'file:{}?mode=rw'.format(pathname2url(db_path))
-                    connection = sqlite3.connect(db_uri)
+                    db_uri = (db_path + ':{}?mode=rw').format(pathname2url(db_path))
+                    conn = sqlite3.connect(db_uri)
                 except sqlite3.OperationalError:
-                    connection = sqlite3.connect(db_path)
-                db_pointer = connection.cursor()
-                # TODO: Add complete Database Schema
-                schema = 'CREATE TABLE IF NOT EXIST' + table_name + '''...'''
+                    conn = sqlite3.connect(db_path)
+                db_pointer = conn.cursor()
+                schema = 'CREATE TABLE IF NOT EXISTS ' + table_name + TwoLineElements.make_sql()
                 db_pointer.execute(schema)
-
-                # TODO: Insert all parsed TLEs into table
                 for tle_dict in self.__tle_dump:
-                    tle_dict.keys()
-                    pass
+                    insert_query = 'INSERT INTO ' + table_name
+                    attributes = list(tle_dict.keys())
+                    insert_query += ' ('
+                    vals = list()
+                    for attr in attributes:
+                        insert_query += str(attr) + ', '
+                        vals.append(tle_dict[attr])
+                    insert_query = insert_query[:-2] + ' ) VALUES (' + '?, '*len(attributes)
+                    insert_query = insert_query[:-2] + ' );'
+                    db_pointer.execute(insert_query, vals)
+                conn.commit()
+                db_pointer.close()
+                conn.close()
 
             else:
                 raise InvalidArgumentError("gen_db: Expected <str> as argument")
         except sqlite3.OperationalError:
             print("Database does not exist")
+
+    '''
+        @classmethod
+        def check_sanity(cls, list_arg):
+            if isinstance(list_arg, list):
+                if all(isinstance(tle_dict, dict) for tle_dict in list_arg):
+                    if all(sorted(list(tle_dict.keys())) == sorted(list(TwoLineElement.schema.keys()))
+                           for tle_dict in list_arg):
+                        if all()
+    '''
+
+
+dat = TwoLineElements.from_file(r"d:/visual.txt")
+dat.gen_db()

@@ -23,9 +23,10 @@ from skimage.filters import sobel
 from skimage.segmentation import felzenszwalb, slic, quickshift, watershed
 from skimage.segmentation import mark_boundaries
 from skimage import transform
-from skimage.util import img_as_float, img_as_ubyte
+from skimage.util import img_as_float, img_as_ubyte, img_as_int
 from skimage import exposure
 from skimage import io
+from scipy import ndimage
 
 
 def straighten(band):
@@ -49,17 +50,14 @@ def straighten(band):
     tform.estimate(src, dst)
     warped_img = transform.warp(band, tform)
 
-    return warped_img
+    return img_as_float(warped_img)
 
 
 def straighten_image(rgb_img, raw=False):
     rectified_bands = list()
     for b in range(rgb_img.shape[-1]):
         rectified_bands.append(straighten(rgb_img[:, :, b]))
-    if raw:
-        return np.dstack(rectified_bands)
-    else:
-        return (np.dstack(rectified_bands)).astype(np.uint8)
+    return np.dstack(rectified_bands)
 
 
 def enhance(img):
@@ -68,10 +66,10 @@ def enhance(img):
         enhanced_bands.append(exposure.equalize_adapthist(img[:, :, b]))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        return img_as_ubyte(np.dstack(enhanced_bands))
+        return np.dstack(enhanced_bands)
 
 
-def main():
+def segment():
 
     segments_fz = felzenszwalb(correct_img, scale=100, sigma=0.5, min_size=100)
     segments_slic = slic(correct_img, n_segments=500, compactness=20, sigma=0.5)
@@ -136,6 +134,38 @@ def gen_statistics(img):
         file.write("\n" + stat.draw() + "\n")
 
 
+def mean_image(img, window=(3, 3)):
+    bands = list()
+    for b in range(img.shape[-1]):
+        bands.append(ndimage.uniform_filter(img[..., b], window))
+    return np.dstack(bands)
+
+
+def variance_image(img, window_size=3):
+    bands = list()
+    for b in range(img.shape[-1]):
+        band = img[..., b]
+        mean_img = ndimage.uniform_filter(band, (window_size, window_size))
+        sqrmean_img = ndimage.uniform_filter(band ** 2, (window_size, window_size))
+        bands.append(sqrmean_img - (mean_img**2))
+    print(np.amin(bands[1]), np.amax(bands[1]))
+    return np.dstack(bands)
+
+
+def skewness_image(img, window_size=3):
+    bands = list()
+    for b in range(img.shape[-1]):
+        bands.append(ndimage.generic_filter(img[..., b], stats.skew, window_size))
+    return np.dstack(bands)
+
+
+def entropy_image(img, window_size=3):
+    bands = list()
+    for b in range(img.shape[-1]):
+        bands.append(ndimage.generic_filter(img[..., b], stats.entropy, window_size))
+    return np.dstack(bands)
+
+
 def show_spinner():
     t = threading.currentThread()
     spinner = itertools.cycle(['|', '/', '-', '\\'])
@@ -151,25 +181,29 @@ abspath = os.path.abspath(__file__)
 dir_name = os.path.dirname(abspath)
 os.chdir(dir_name)
 
-input_image = (np.array(gdal.Open(r'data/study_area.tif').ReadAsArray())).astype(float)
-img_array = img_as_float((input_image.transpose(1, 2, 0))[::2, ::2])
+input_image = (np.array(gdal.Open(r'data/study_area.tif').ReadAsArray())).astype(np.uint8)
+img_array = img_as_ubyte((input_image.transpose(1, 2, 0)))
 straight_image = straighten_image(img_array)
-correct_img = enhance(straight_image)
+# correct_img = enhance(straight_image)
+correct_img = straight_image
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
-    io.imsave(r"output/rectified_image.tiff", straight_image)
-    # io.imsave(r"output/rectified_image.png", straight_image)
-    io.imsave(r"output/enhanced_image.tiff", correct_img)
-    # io.imsave(r"output/enhanced_image.png", correct_img)
+    # io.imsave(r"output/rectified_image.tiff", straight_image)
+    # io.imsave(r"output/enhanced_image.tiff", correct_img)
 
 if __name__ == '__main__':
     th = threading.Thread(target=show_spinner)
     th.daemon = True
     th.start()
-    gen_statistics(straight_image)
-    segments = main()
+    # segments = segment()
     th.run_flag = False
     th.join()
     sys.stdout.write('\b')
+    # io.imsave(r"output/edge.png", variance_image(img_array))
+    # io.imsave(r"output/edge.png", variance_image(img_array))
+    # io.imsave(r'output/skewness.png', skewness_image(img_array))
+    # io.imsave(r'output/entropy.png', entropy_image(img_array))
+    io.imsave(r"output/variance.png", variance_image(img_array))
+
     print("Completed Successfully...\n")
-    show(segments)
+    # show(segments)
