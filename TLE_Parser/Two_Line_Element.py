@@ -67,7 +67,7 @@ class TwoLineElement:
         'PIECE_OF_LAUNCH': str, 'EPOCH_YEAR': int, 'EPOCH_DAY': float, 'FIRST_TIME_DERIVATIVE': float,
         'SECOND_TIME_DERIVATIVE': float, 'BSTAR_DRAG': float, 'EPHEMERIS_TYPE': int, 'ELEMENT_SET_NUMBER': int,
         'INCLINATION': float, 'RIGHT_ASCENSION': float, 'ECCENTRICITY': float, 'ARGUMENT_OF_PERIGEE': float,
-        'MEAN_ANOMALY': float, 'MEAN_MOTION': float, 'REVOLUTION_AT_EPOCH': int
+        'MEAN_ANOMALY': float, 'MEAN_MOTION': float, 'REVOLUTION_AT_EPOCH': int, 'STATUS': str
     }
 
     type_map = {
@@ -128,8 +128,19 @@ class TwoLineElement:
                 tle_lines = (tle_string.strip()).split('\n')
                 if len(tle_lines) == 3:
                     if (len(tle_lines[0]) <= 24) and (len(tle_lines[1]) == 69) and (len(tle_lines[2]) == 69):
-                        if tle_lines[0]:
-                            tle_dict['SATELLITE_NAME'] = tle_lines[0]
+                        title = tle_lines[0]
+                        if title:
+                            status_pattern = re.compile(r"\[[PBSX+\-]\]")
+                            match = status_pattern.search(title)
+                            span = None
+                            if match:
+                                span = match.span()
+                            if span:
+                                tle_dict['SATELLITE_NAME'] = title[:span[0]]
+                                tle_dict['STATUS'] = title[span[0]:span[1]]
+                            else:
+                                tle_dict['SATELLITE_NAME'] = title
+                                tle_dict['STATUS'] = str()
                         else:
                             raise IntegrityError("parse_tle: Invalid TLE title")
                         if tle_lines[1][0] == '1':
@@ -311,11 +322,33 @@ class TwoLineElements:
     def count(self):
         return len(self.__tle_dump)
 
-    def __init__(self, tle_list):
-        if isinstance(tle_list, list):
+    @staticmethod
+    def check_sanity(list_arg, verbose=False):
+        try:
+            if isinstance(list_arg, list):
+                if all(isinstance(tle_dict, dict) for tle_dict in list_arg):
+                    return all(all(isinstance(tle_dict[key], TwoLineElement.schema[key]) for key in tle_dict.keys()) for
+                               tle_dict in list_arg)
+                else:
+                    raise IntegrityError('Expected all elements to be of <dict> type')
+            else:
+                raise InvalidArgumentError('Expected argument to be of <list> type')
+        except IntegrityError as integrity_err:
+            if verbose:
+                print(integrity_err)
+            return False
+        except InvalidArgumentError as arg_err:
+            if verbose:
+                print(arg_err)
+            return False
+
+    def __init__(self, tle_list, verbose=False):
+        if not isinstance(verbose, bool):
+            verbose = False
+        if TwoLineElements.check_sanity(tle_list, verbose=verbose):
             self.__tle_dump = tle_list
         else:
-            raise InvalidArgumentError("set: Expected <list> as argument")
+            raise InvalidArgumentError("TwoLineElements: Illegal Argument")
 
     def __add__(self, other):
         try:
@@ -357,13 +390,17 @@ class TwoLineElements:
                     insert_query = 'INSERT INTO ' + table_name
                     attributes = list(tle_dict.keys())
                     insert_query += ' ('
-                    vals = list()
+                    values_string = list()
                     for attr in attributes:
                         insert_query += str(attr) + ', '
-                        vals.append(tle_dict[attr])
+                        values_string.append(tle_dict[attr])
                     insert_query = insert_query[:-2] + ' ) VALUES (' + '?, '*len(attributes)
                     insert_query = insert_query[:-2] + ' );'
-                    db_pointer.execute(insert_query, vals)
+                    db_pointer.execute(insert_query, values_string)
+                '''
+                recs = db_pointer.execute('SELECT * FROM Sat_Info').fetchall()
+                print(recs)
+                '''
                 conn.commit()
                 db_pointer.close()
                 conn.close()
@@ -372,16 +409,6 @@ class TwoLineElements:
                 raise InvalidArgumentError("gen_db: Expected <str> as argument")
         except sqlite3.OperationalError:
             print("Database does not exist")
-
-    '''
-        @classmethod
-        def check_sanity(cls, list_arg):
-            if isinstance(list_arg, list):
-                if all(isinstance(tle_dict, dict) for tle_dict in list_arg):
-                    if all(sorted(list(tle_dict.keys())) == sorted(list(TwoLineElement.schema.keys()))
-                           for tle_dict in list_arg):
-                        if all()
-    '''
 
 
 dat = TwoLineElements.from_file(r"d:/visual.txt")
