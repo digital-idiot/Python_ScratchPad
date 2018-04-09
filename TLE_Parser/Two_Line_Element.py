@@ -339,8 +339,8 @@ class TwoLineElements:
         try:
             if isinstance(list_arg, list):
                 if all(isinstance(tle_dict, dict) for tle_dict in list_arg):
-                    return all(all(isinstance(tle_dict[key], (TwoLineElement.schema[key])[0]) for key in tle_dict.keys()) for
-                               tle_dict in list_arg)
+                    return all(all(isinstance(tle_dict[key], (TwoLineElement.schema[key])[0])
+                                   for key in tle_dict.keys()) for tle_dict in list_arg)
                 else:
                     raise IntegrityError('Expected all elements to be of <dict> type')
             else:
@@ -386,45 +386,39 @@ class TwoLineElements:
         sql_str = sql_str[:-2] + ' );'
         return sql_str
 
-    # Warning: Not Complete
-    def gen_db(self, db_path='Sat_Repo.db', table_name='Sat_Info', verbose=False):
+    def gen_db(self, db_path='Sat_Repo.db', table_name='Sat_Info', verbose=True):
         try:
             if isinstance(db_path, str):
                 try:
-                    db_uri = (db_path + ':{}?mode=rw').format(pathname2url(db_path))
+                    db_uri = (db_path + '?mode=rw').format(pathname2url(db_path))
                     conn = sqlite3.connect(db_uri)
                 except sqlite3.OperationalError:
-                    print("Database does not exist")
+                    if verbose:
+                        print("Database does not exist")
                     conn = sqlite3.connect(db_path)
-                db_pointer = conn.cursor()
-                create_sql = 'CREATE TABLE IF NOT EXISTS ' + table_name + ' ' + TwoLineElements.make_schema()
-                db_pointer.execute(create_sql)
-                for tle_dict in self.__tle_dump:
-                    insert_query = 'INSERT INTO ' + table_name
-                    attributes = list(tle_dict.keys())
-                    insert_query += ' ('
-                    values_string = list()
-                    for attr in attributes:
-                        insert_query += str(attr) + ', '
-                        value = tle_dict[attr]
-                        if value == str():
-                            value = None
-                        values_string.append(value)
-                    insert_query = insert_query[:-2] + ' ) VALUES (' + '?, '*len(attributes)
-                    insert_query = insert_query[:-2] + ' );'
-                    try:
-                        db_pointer.execute(insert_query, values_string)
-                    except sqlite3.Error:
-                        if verbose:
-                            print('Warning: Record Insertion Failed\n', 'Record Values: ', values_string, '\n')
-                '''
-                recs = db_pointer.execute('SELECT * FROM Sat_Info').fetchall()
-                print(recs)
-                '''
-                conn.commit()
-                db_pointer.close()
+                with conn:
+                    db_pointer = conn.cursor()
+                    create_sql = 'CREATE TABLE IF NOT EXISTS ' + table_name + ' ' + TwoLineElements.make_schema()
+                    db_pointer.execute(create_sql)
+                    for tle_dict in self.__tle_dump:
+                        insert_query = 'INSERT INTO ' + table_name
+                        attributes = list(tle_dict.keys())
+                        insert_query += ' ('
+                        values_string = list()
+                        for attr in attributes:
+                            insert_query += str(attr) + ', '
+                            value = tle_dict[attr]
+                            if value == str():
+                                value = None
+                            values_string.append(value)
+                        insert_query = insert_query[:-2] + ' ) VALUES (' + '?, '*len(attributes)
+                        insert_query = insert_query[:-2] + ' );'
+                        try:
+                            db_pointer.execute(insert_query, values_string)
+                        except sqlite3.Error:
+                            if verbose:
+                                print('Warning: Record Insertion Failed\n', 'Record Values: ', values_string, '\n')
                 conn.close()
-
             else:
                 raise InvalidArgumentError("gen_db: Expected <str> as argument")
         except InvalidArgumentError as arg_err:
@@ -437,5 +431,10 @@ class TwoLineElements:
             return None
 
 
-dat = TwoLineElements.from_file(r"d:/visual.txt")
-dat.gen_db()
+# dat = TwoLineElements.from_file(r"d:/visual.txt")
+# dat.gen_db()
+# conn = sqlite3.connect('Sat_Repo.db')
+# db_pointer = conn.cursor()
+# recs = db_pointer.execute('SELECT * FROM Sat_Info').fetchall()
+# print(recs)
+# conn.close()
