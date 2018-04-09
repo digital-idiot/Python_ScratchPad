@@ -63,15 +63,27 @@ class FatalError(Exception):
 class TwoLineElement:
 
     schema = {
-        'SATELLITE_NAME': str, 'SATELLITE_NUMBER': int, 'CLASSFICATION': str, 'LAUNCH_YEAR': int, 'LAUNCH_NUMBER': int,
-        'PIECE_OF_LAUNCH': str, 'EPOCH_YEAR': int, 'EPOCH_DAY': float, 'FIRST_TIME_DERIVATIVE': float,
-        'SECOND_TIME_DERIVATIVE': float, 'BSTAR_DRAG': float, 'EPHEMERIS_TYPE': int, 'ELEMENT_SET_NUMBER': int,
-        'INCLINATION': float, 'RIGHT_ASCENSION': float, 'ECCENTRICITY': float, 'ARGUMENT_OF_PERIGEE': float,
-        'MEAN_ANOMALY': float, 'MEAN_MOTION': float, 'REVOLUTION_AT_EPOCH': int, 'STATUS': str
+        'SATELLITE_NAME': (str, 'NOT NULL'), 'SATELLITE_NUMBER': (int, 'PRIMARY KEY'),
+        'CLASSFICATION': (str, 'NOT NULL'), 'LAUNCH_YEAR': (int, 'NOT NULL'), 'LAUNCH_NUMBER': (int, 'NOT NULL'),
+        'PIECE_OF_LAUNCH': (str, 'NOT NULL'), 'EPOCH_YEAR': (int, 'NOT NULL'), 'EPOCH_DAY': (float, 'NOT NULL'),
+        'FIRST_TIME_DERIVATIVE': (float, 'NOT NULL'), 'SECOND_TIME_DERIVATIVE': (float, 'NOT NULL'),
+        'BSTAR_DRAG': (float, 'NOT NULL'), 'EPHEMERIS_TYPE': (int, 'NOT NULL'), 'ELEMENT_SET_NUMBER': (int, 'NOT NULL'),
+        'INCLINATION': (float, 'NOT NULL'), 'RIGHT_ASCENSION': (float, 'NOT NULL'), 'ECCENTRICITY': (float, 'NOT NULL'),
+        'ARGUMENT_OF_PERIGEE': (float, 'NOT NULL'), 'MEAN_ANOMALY': (float, 'NOT NULL'),
+        'MEAN_MOTION': (float, 'NOT NULL'), 'REVOLUTION_AT_EPOCH': (int, 'NOT NULL'), 'STATUS': (str,)
     }
 
     type_map = {
         str: 'TEXT', int: 'INTEGER', float: 'REAL'
+    }
+
+    status_map = {
+        '[+]': 'Operational',
+        '[-]': 'Non-operational',
+        '[P]': 'Partially Operational',
+        '[B]': 'Standby',
+        '[S]': 'Spare',
+        '[X]': 'Extended Mission'
     }
 
     @staticmethod
@@ -136,10 +148,10 @@ class TwoLineElement:
                             if match:
                                 span = match.span()
                             if span:
-                                tle_dict['SATELLITE_NAME'] = title[:span[0]]
-                                tle_dict['STATUS'] = title[span[0]:span[1]]
+                                tle_dict['SATELLITE_NAME'] = (title[:span[0]]).strip()
+                                tle_dict['STATUS'] = TwoLineElement.status_map[title[span[0]:span[1]]]
                             else:
-                                tle_dict['SATELLITE_NAME'] = title
+                                tle_dict['SATELLITE_NAME'] = title.strip()
                                 tle_dict['STATUS'] = str()
                         else:
                             raise IntegrityError("parse_tle: Invalid TLE title")
@@ -327,7 +339,7 @@ class TwoLineElements:
         try:
             if isinstance(list_arg, list):
                 if all(isinstance(tle_dict, dict) for tle_dict in list_arg):
-                    return all(all(isinstance(tle_dict[key], TwoLineElement.schema[key]) for key in tle_dict.keys()) for
+                    return all(all(isinstance(tle_dict[key], (TwoLineElement.schema[key])[0]) for key in tle_dict.keys()) for
                                tle_dict in list_arg)
                 else:
                     raise IntegrityError('Expected all elements to be of <dict> type')
@@ -362,30 +374,31 @@ class TwoLineElements:
             return None
 
     @staticmethod
-    def make_sql():
+    def make_schema():
         schema = TwoLineElement.schema
         sql_str = '( '
         for key in schema.keys():
-            sql_str += key + ' ' + TwoLineElement.type_map[schema[key]] + ' '
-            if key == 'SATELLITE_NUMBER':
-                sql_str += 'PRIMARY KEY, '
+            if len(schema[key]) == 2:
+                constraint = ' ' + (schema[key])[1] + ', '
             else:
-                sql_str += 'NOT NULL, '
+                constraint = ', '
+            sql_str += key + ' ' + TwoLineElement.type_map[(schema[key])[0]] + constraint
         sql_str = sql_str[:-2] + ' );'
         return sql_str
 
     # Warning: Not Complete
-    def gen_db(self, db_path='Sat_Repo.db', table_name='Sat_Info'):
+    def gen_db(self, db_path='Sat_Repo.db', table_name='Sat_Info', verbose=False):
         try:
             if isinstance(db_path, str):
                 try:
                     db_uri = (db_path + ':{}?mode=rw').format(pathname2url(db_path))
                     conn = sqlite3.connect(db_uri)
                 except sqlite3.OperationalError:
+                    print("Database does not exist")
                     conn = sqlite3.connect(db_path)
                 db_pointer = conn.cursor()
-                schema = 'CREATE TABLE IF NOT EXISTS ' + table_name + TwoLineElements.make_sql()
-                db_pointer.execute(schema)
+                create_sql = 'CREATE TABLE IF NOT EXISTS ' + table_name + ' ' + TwoLineElements.make_schema()
+                db_pointer.execute(create_sql)
                 for tle_dict in self.__tle_dump:
                     insert_query = 'INSERT INTO ' + table_name
                     attributes = list(tle_dict.keys())
@@ -393,10 +406,17 @@ class TwoLineElements:
                     values_string = list()
                     for attr in attributes:
                         insert_query += str(attr) + ', '
-                        values_string.append(tle_dict[attr])
+                        value = tle_dict[attr]
+                        if value == str():
+                            value = None
+                        values_string.append(value)
                     insert_query = insert_query[:-2] + ' ) VALUES (' + '?, '*len(attributes)
                     insert_query = insert_query[:-2] + ' );'
-                    db_pointer.execute(insert_query, values_string)
+                    try:
+                        db_pointer.execute(insert_query, values_string)
+                    except sqlite3.Error:
+                        if verbose:
+                            print('Warning: Record Insertion Failed\n', 'Record Values: ', values_string, '\n')
                 '''
                 recs = db_pointer.execute('SELECT * FROM Sat_Info').fetchall()
                 print(recs)
@@ -407,8 +427,14 @@ class TwoLineElements:
 
             else:
                 raise InvalidArgumentError("gen_db: Expected <str> as argument")
-        except sqlite3.OperationalError:
-            print("Database does not exist")
+        except InvalidArgumentError as arg_err:
+            if verbose:
+                print(arg_err)
+            return None
+        except sqlite3.OperationalError as sqlite_err:
+            if verbose:
+                print(sqlite_err)
+            return None
 
 
 dat = TwoLineElements.from_file(r"d:/visual.txt")
