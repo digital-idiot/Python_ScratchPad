@@ -2,6 +2,7 @@ import re
 import magic
 import sqlite3
 from urllib.request import pathname2url
+import ntpath
 
 
 class InvalidArgumentError(Exception):
@@ -70,7 +71,8 @@ class TwoLineElement:
         'BSTAR_DRAG': (float, 'NOT NULL'), 'EPHEMERIS_TYPE': (int, 'NOT NULL'), 'ELEMENT_SET_NUMBER': (int, 'NOT NULL'),
         'INCLINATION': (float, 'NOT NULL'), 'RIGHT_ASCENSION': (float, 'NOT NULL'), 'ECCENTRICITY': (float, 'NOT NULL'),
         'ARGUMENT_OF_PERIGEE': (float, 'NOT NULL'), 'MEAN_ANOMALY': (float, 'NOT NULL'),
-        'MEAN_MOTION': (float, 'NOT NULL'), 'REVOLUTION_AT_EPOCH': (int, 'NOT NULL'), 'STATUS': (str,)
+        'MEAN_MOTION': (float, 'NOT NULL'), 'REVOLUTION_AT_EPOCH': (int, 'NOT NULL'), 'STATUS': (str,),
+        'CELESTRAK_CLASS': (str,)
     }
 
     type_map = {
@@ -313,20 +315,29 @@ class TwoLineElements:
             return None
 
     @classmethod
-    def from_file(cls, file_path=None, ignore=False, verbose=False):
-            if file_path:
-                try:
-                    parsed_tle = TwoLineElements.parse_tle_file(file_path, ignore=ignore, verbose=verbose)
-                except ValueError as val_err:
-                    parsed_tle = None
-                    if verbose:
-                        print(val_err)
-                if parsed_tle:
-                    return TwoLineElements(parsed_tle[1])
-                else:
-                    raise ValueError('Invalid TLE File: Parsing of TLE File Failed')
+    def from_file(cls, file_path=None, celestrak=True, ignore=False, verbose=False):
+        celestrak_class = str()
+        if file_path:
+            try:
+                parsed_tle = TwoLineElements.parse_tle_file(file_path, ignore=ignore, verbose=verbose)
+                if celestrak:
+                    ext_pattern = re.compile(r"\.\w+$")
+                    file_name = (ntpath.basename(file_path)).strip()
+                    match = ext_pattern.search(file_name)
+                    if match:
+                        celestrak_class = (file_name[:(match.span())[0]]).upper()
+            except ValueError as val_err:
+                parsed_tle = None
+                if verbose:
+                    print(val_err)
+            if parsed_tle:
+                for tle in parsed_tle[1]:
+                    tle['CELESTRAK_CLASS'] = celestrak_class
+                return TwoLineElements(parsed_tle[1])
             else:
-                return TwoLineElements(list())
+                raise ValueError('Invalid TLE File: Parsing of TLE File Failed')
+        else:
+            return TwoLineElements(list())
 
     def get_all(self):
         return self.__tle_dump
