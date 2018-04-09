@@ -72,7 +72,7 @@ class TwoLineElement:
         'INCLINATION': (float, 'NOT NULL'), 'RIGHT_ASCENSION': (float, 'NOT NULL'), 'ECCENTRICITY': (float, 'NOT NULL'),
         'ARGUMENT_OF_PERIGEE': (float, 'NOT NULL'), 'MEAN_ANOMALY': (float, 'NOT NULL'),
         'MEAN_MOTION': (float, 'NOT NULL'), 'REVOLUTION_AT_EPOCH': (int, 'NOT NULL'), 'STATUS': (str,),
-        'CELESTRAK_CLASS': (str,)
+        'CELESTRAK_CLASS': (str,), 'RAW_TLE': (str, 'NOT NULL')
     }
 
     type_map = {
@@ -208,6 +208,7 @@ class TwoLineElement:
                                         raise IntegrityError('Possible Corruption of TLE Data')
                                     tle_dict['EPHEMERIS_TYPE'] = int(tle_lines[1][62])
                                     tle_dict['ELEMENT_SET_NUMBER'] = int(tle_lines[1][64:68])
+                                    tle_dict['RAW_TLE'] = tle_string.strip()
                                 except ValueError as val_err:
                                     if verbose:
                                         print(val_err, "\nparse_tle: Invalid TLE Data")
